@@ -1,6 +1,6 @@
 {
 	"name": "lapis-lazuli",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "Context-aware inline AI assistance for active Markdown notes in Obsidian.",
 	"main": "main.js",
 	"type": "module",
@@ -11,10 +11,10 @@
 		"lint": "eslint ."
 	},
 	"keywords": [],
-	"license": "0-BSD",
+	"license": "MIT",
 	"dependencies": {
-		"@codemirror/state": "^6.5.0",
-		"@codemirror/view": "^6.38.6"
+		"@codemirror/state": "6.5.0",
+		"@codemirror/view": "6.38.6"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
@@ -24,7 +24,7 @@
 		"eslint-plugin-obsidianmd": "^0.3.0",
 		"globals": "^17.6.0",
 		"jiti": "^2.6.1",
-		"obsidian": "latest",
+		"obsidian": "1.13.1",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "^8.59.1"
 	}
