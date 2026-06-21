@@ -1,0 +1,8 @@
+{
+	"id": "lapis-lazuli-ai-assistant",
+	"name": "Lapis Lazuli AI Assistant",
+	"version": "1.0.0",
+	"minAppVersion": "1.11.4",
+	"description": "Context-aware inline AI assistance for active Markdown notes with DeepSeek, OpenAI, Gemini, and Claude.",
+	"isDesktopOnly": false
+}
