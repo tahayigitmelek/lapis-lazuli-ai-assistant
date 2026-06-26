@@ -266,12 +266,24 @@
 
 .lapis-lazuli-chat-composer-actions {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
 	margin-top: 6px;
+}
+
+.lapis-lazuli-chat-active-model {
+	min-width: 0;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .lapis-lazuli-chat-primary-button,
 .lapis-lazuli-chat-secondary-button {
+	flex: 0 0 auto;
 	border-radius: 4px;
 	font-size: var(--font-ui-small);
 }

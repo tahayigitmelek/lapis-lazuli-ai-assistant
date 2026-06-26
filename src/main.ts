@@ -123,6 +123,17 @@ export default class LapisLazuliPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		this.refreshChatModelLabels();
+	}
+
+	private refreshChatModelLabels() {
+		for (const leaf of this.app.workspace.getLeavesOfType(
+			LAPIS_LAZULI_CHAT_VIEW_TYPE,
+		)) {
+			if (leaf.view instanceof LapisLazuliChatView) {
+				leaf.view.refreshActiveModelLabel();
+			}
+		}
 	}
 
 	async activateChatView() {

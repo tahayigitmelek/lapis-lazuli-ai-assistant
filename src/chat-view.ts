@@ -1,6 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import { AiMessage } from './providers';
 import type LapisLazuliPlugin from './main';
+import { getProviderName } from './settings';
 
 export const LAPIS_LAZULI_CHAT_VIEW_TYPE = 'lapis-lazuli-chat-view';
 
@@ -15,6 +16,7 @@ interface ChatMessage {
 export class LapisLazuliChatView extends ItemView {
 	private messages: ChatMessage[] = [];
 	private inputEl: HTMLTextAreaElement | null = null;
+	private activeModelEl: HTMLElement | null = null;
 	private isSending = false;
 
 	constructor(
@@ -41,7 +43,18 @@ export class LapisLazuliChatView extends ItemView {
 	}
 
 	protected async onClose() {
+		this.activeModelEl = null;
+		this.inputEl = null;
 		this.contentEl.empty();
+	}
+
+	refreshActiveModelLabel() {
+		if (!this.activeModelEl) {
+			this.render();
+			return;
+		}
+
+		this.activeModelEl.textContent = this.getActiveModelLabel();
 	}
 
 	private render() {
@@ -85,6 +98,10 @@ export class LapisLazuliChatView extends ItemView {
 		});
 
 		const actionsEl = composerEl.createDiv('lapis-lazuli-chat-composer-actions');
+		this.activeModelEl = actionsEl.createDiv({
+			cls: 'lapis-lazuli-chat-active-model',
+			text: this.getActiveModelLabel(),
+		});
 		const sendButton = actionsEl.createEl('button', {
 			cls: 'lapis-lazuli-chat-primary-button',
 			text: this.isSending ? 'Sending...' : 'Send',
@@ -206,6 +223,14 @@ export class LapisLazuliChatView extends ItemView {
 						? `Proposed note edit: ${message.content}`
 						: message.content,
 			}));
+	}
+
+	private getActiveModelLabel() {
+		const provider = this.plugin.settings.activeProvider;
+		const model = this.plugin.settings.models[provider]?.trim();
+		return model
+			? `${getProviderName(provider)} · ${model}`
+			: getProviderName(provider);
 	}
 }
 

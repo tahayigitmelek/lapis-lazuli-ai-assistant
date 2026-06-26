@@ -5,7 +5,7 @@ export const AI_PROVIDERS = [
 	{
 		id: 'deepseek',
 		name: 'DeepSeek',
-		defaultModel: 'deepseek-chat',
+		defaultModel: 'deepseek-v4-flash',
 	},
 	{
 		id: 'openai',
@@ -15,12 +15,12 @@ export const AI_PROVIDERS = [
 	{
 		id: 'gemini',
 		name: 'Gemini',
-		defaultModel: 'gemini-1.5-flash',
+		defaultModel: 'gemini-3.5-flash',
 	},
 	{
 		id: 'claude',
 		name: 'Claude',
-		defaultModel: 'claude-3-5-haiku-20241022',
+		defaultModel: 'claude-haiku-4-5',
 	},
 ] as const;
 
@@ -115,6 +115,7 @@ export class LapisLazuliSettingTab extends PluginSettingTab {
 
 						this.plugin.settings.activeProvider = value;
 						await this.plugin.saveSettings();
+						// eslint-disable-next-line @typescript-eslint/no-deprecated
 						this.display();
 					});
 			});

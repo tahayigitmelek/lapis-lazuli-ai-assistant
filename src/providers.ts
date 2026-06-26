@@ -1,4 +1,4 @@
-import { requestUrl } from 'obsidian';
+import { requestUrl, type RequestUrlParam } from 'obsidian';
 import { AiProviderId, getProviderName, LapisLazuliSettings } from './settings';
 
 export interface AiSuggestionContext {
@@ -29,9 +29,7 @@ interface OpenAiLikeResponse {
 			content?: string | null;
 		};
 	}>;
-	error?: {
-		message?: string;
-	};
+	error?: ProviderErrorPayload;
 }
 
 interface GeminiResponse {
@@ -44,6 +42,9 @@ interface GeminiResponse {
 	}>;
 	error?: {
 		message?: string;
+		status?: string;
+		code?: string | number | null;
+		details?: unknown[];
 	};
 }
 
@@ -52,9 +53,15 @@ interface ClaudeResponse {
 		type?: string;
 		text?: string;
 	}>;
-	error?: {
-		message?: string;
-	};
+	error?: ProviderErrorPayload;
+}
+
+interface ProviderErrorPayload {
+	message?: string;
+	type?: string;
+	code?: string | number | null;
+	param?: string | null;
+	status?: string;
 }
 
 const OPENAI_CHAT_COMPLETIONS_URL =
@@ -233,9 +240,10 @@ async function requestOpenAiLikeSuggestion(args: {
 	userPrompt: string;
 	history: AiMessage[];
 }) {
-	const response = await requestUrl({
+	const response = await requestProviderUrl({
 		url: args.url,
 		method: 'POST',
+		throw: false,
 		headers: {
 			Authorization: `Bearer ${args.apiKey}`,
 			'Content-Type': 'application/json',
@@ -258,7 +266,7 @@ async function requestOpenAiLikeSuggestion(args: {
 	});
 	const data = response.json as OpenAiLikeResponse;
 
-	assertOkResponse(response.status, data.error?.message ?? response.text);
+	assertOkResponse(response.status, data.error, response.text);
 
 	const content = data.choices?.[0]?.message?.content;
 	if (!content) {
@@ -275,11 +283,12 @@ async function requestGeminiSuggestion(args: {
 	userPrompt: string;
 	history: AiMessage[];
 }) {
-	const response = await requestUrl({
+	const response = await requestProviderUrl({
 		url: `${GEMINI_GENERATE_CONTENT_URL}/${encodeURIComponent(
 			args.model,
 		)}:generateContent?key=${encodeURIComponent(args.apiKey)}`,
 		method: 'POST',
+		throw: false,
 		headers: {
 			'Content-Type': 'application/json',
 		},
@@ -316,7 +325,7 @@ async function requestGeminiSuggestion(args: {
 	});
 	const data = response.json as GeminiResponse;
 
-	assertOkResponse(response.status, data.error?.message ?? response.text);
+	assertOkResponse(response.status, data.error, response.text);
 
 	const content = data.candidates?.[0]?.content?.parts
 		?.map((part) => part.text ?? '')
@@ -335,9 +344,10 @@ async function requestClaudeSuggestion(args: {
 	userPrompt: string;
 	history: AiMessage[];
 }) {
-	const response = await requestUrl({
+	const response = await requestProviderUrl({
 		url: CLAUDE_MESSAGES_URL,
 		method: 'POST',
+		throw: false,
 		headers: {
 			'Content-Type': 'application/json',
 			'anthropic-version': '2023-06-01',
@@ -359,7 +369,7 @@ async function requestClaudeSuggestion(args: {
 	});
 	const data = response.json as ClaudeResponse;
 
-	assertOkResponse(response.status, data.error?.message ?? response.text);
+	assertOkResponse(response.status, data.error, response.text);
 
 	const content = data.content
 		?.filter((part) => part.type === 'text' || part.text)
@@ -372,22 +382,74 @@ async function requestClaudeSuggestion(args: {
 	return content;
 }
 
-function assertOkResponse(status: number, message: string) {
+async function requestProviderUrl(request: RequestUrlParam) {
+	return requestUrl({
+		...request,
+		throw: false,
+	});
+}
+
+function assertOkResponse(
+	status: number,
+	error: ProviderErrorPayload | undefined,
+	responseText: string,
+) {
 	if (status >= 200 && status < 300) {
 		return;
 	}
 
-	throw new Error(cleanProviderError(message));
+	throw new Error(formatProviderError(status, error, responseText));
 }
 
-function cleanProviderError(message: string) {
-	const fallback = 'The API request failed.';
-	const trimmed = message.trim();
-	if (!trimmed) {
-		return fallback;
+function formatProviderError(
+	status: number,
+	error: ProviderErrorPayload | undefined,
+	responseText: string,
+) {
+	const details = [`API request failed with HTTP ${status}.`];
+	const message = error?.message?.trim();
+
+	if (message) {
+		details.push(message);
 	}
 
-	return trimmed.length > 300 ? `${trimmed.slice(0, 300)}...` : trimmed;
+	const metadata = [
+		formatErrorField('type', error?.type),
+		formatErrorField('code', error?.code),
+		formatErrorField('param', error?.param),
+		formatErrorField('status', error?.status),
+	].filter((value): value is string => Boolean(value));
+
+	if (metadata.length > 0) {
+		details.push(`Details: ${metadata.join(', ')}.`);
+	}
+
+	const rawResponse = responseText.trim();
+	if (!message && rawResponse) {
+		details.push(`Response: ${rawResponse}`);
+	}
+
+	return details.join('\n');
+}
+
+function formatErrorField(label: string, value: unknown) {
+	if (value === undefined || value === null || value === '') {
+		return undefined;
+	}
+
+	return `${label}=${formatErrorValue(value)}`;
+}
+
+function formatErrorValue(value: unknown) {
+	if (typeof value === 'string') {
+		return value;
+	}
+
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value);
+	}
+
+	return JSON.stringify(value);
 }
 
 function assertNever(provider: never): never {
