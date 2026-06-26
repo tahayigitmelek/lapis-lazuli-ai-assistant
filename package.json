@@ -1,6 +1,6 @@
 {
 	"name": "lapis-lazuli",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Context-aware inline AI assistance for active Markdown notes in Obsidian.",
 	"main": "main.js",
 	"type": "module",
