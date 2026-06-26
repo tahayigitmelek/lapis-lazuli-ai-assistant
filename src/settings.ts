@@ -91,6 +91,10 @@ export class LapisLazuliSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		this.renderSettings();
+	}
+
+	private renderSettings() {
 		const { containerEl } = this;
 		const activeProvider = this.plugin.settings.activeProvider;
 		const provider = AI_PROVIDERS.find(
@@ -115,8 +119,7 @@ export class LapisLazuliSettingTab extends PluginSettingTab {
 
 						this.plugin.settings.activeProvider = value;
 						await this.plugin.saveSettings();
-						// eslint-disable-next-line @typescript-eslint/no-deprecated
-						this.display();
+						this.renderSettings();
 					});
 			});
 
