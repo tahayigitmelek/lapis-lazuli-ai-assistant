@@ -1,4 +1,4 @@
-import { Editor, MarkdownView, Notice, Plugin } from 'obsidian';
+import { Editor, MarkdownView, Notice, Plugin, TFile } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import {
 	LAPIS_LAZULI_CHAT_VIEW_TYPE,
@@ -172,11 +172,12 @@ export default class LapisLazuliPlugin extends Plugin {
 		const editor = markdownView.editor;
 		const from = editor.posToOffset(editor.getCursor('from'));
 		const to = editor.posToOffset(editor.getCursor('to'));
-		const context = this.buildSuggestionContext(
+		const context = await this.buildSuggestionContext(
 			editor,
 			from,
 			to,
 			prompt,
+			markdownView,
 		);
 
 		const response = await requestAiChatResponse(
@@ -230,11 +231,12 @@ export default class LapisLazuliPlugin extends Plugin {
 		});
 
 		try {
-			const context = this.buildSuggestionContext(
+			const context = await this.buildSuggestionContext(
 				editor,
 				from,
 				to,
 				getInlineUserMessage(selectedText),
+				markdownView,
 			);
 			const content = normalizeAiOutput(
 				await requestAiSuggestion(this.settings, context),
@@ -272,12 +274,13 @@ export default class LapisLazuliPlugin extends Plugin {
 		}
 	}
 
-	private buildSuggestionContext(
+	private async buildSuggestionContext(
 		editor: Editor,
 		from: number,
 		to: number,
 		userMessage: string,
-	): AiSuggestionContext {
+		markdownView: MarkdownView,
+	): Promise<AiSuggestionContext> {
 		const fullNote = editor.getValue();
 		const maxContextCharacters = Math.max(
 			1000,
@@ -293,9 +296,28 @@ export default class LapisLazuliPlugin extends Plugin {
 
 		return {
 			markdown: contextWindow.text,
+			notePath: this.settings.includeNotePathInContext
+				? getNotePathWithVaultName(markdownView)
+				: undefined,
 			userMessage,
-			extraInstructions: this.settings.extraInstructions,
+			agentInstructions: await this.loadAgentInstructions(),
 		};
+	}
+
+	private async loadAgentInstructions() {
+		const path = this.settings.agentInstructionsFilePath.trim();
+		if (!path) {
+			return undefined;
+		}
+
+		const file = this.app.vault.getAbstractFileByPath(path);
+		if (!(file instanceof TFile) || file.extension !== 'md') {
+			throw new Error(
+				'The selected agent instructions file was not found. Choose another Markdown file in settings.',
+			);
+		}
+
+		return this.app.vault.cachedRead(file);
 	}
 
 	private acceptSuggestion(suggestion: InlineSuggestion, view: EditorView) {
@@ -542,6 +564,15 @@ function getInlineUserMessage(selectedText: string) {
 	}
 
 	return 'Write a concise Markdown addition for the current note and return only the Markdown to insert.';
+}
+
+function getNotePathWithVaultName(markdownView: MarkdownView) {
+	const notePath = markdownView.file?.path;
+	if (!notePath) {
+		return undefined;
+	}
+
+	return `${markdownView.app.vault.getName()}/${notePath}`;
 }
 
 function normalizeAiOutput(content: string) {

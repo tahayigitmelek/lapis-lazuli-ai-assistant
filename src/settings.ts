@@ -1,4 +1,10 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import {
+	App,
+	FuzzySuggestModal,
+	PluginSettingTab,
+	Setting,
+	TFile,
+} from 'obsidian';
 import type LapisLazuliPlugin from './main';
 
 export const AI_PROVIDERS = [
@@ -30,7 +36,8 @@ export interface LapisLazuliSettings {
 	activeProvider: AiProviderId;
 	apiKeys: Record<AiProviderId, string>;
 	models: Record<AiProviderId, string>;
-	extraInstructions: string;
+	agentInstructionsFilePath: string;
+	includeNotePathInContext: boolean;
 	maxContextCharacters: number;
 }
 
@@ -45,7 +52,8 @@ export const DEFAULT_SETTINGS: LapisLazuliSettings = {
 	models: Object.fromEntries(
 		AI_PROVIDERS.map((provider) => [provider.id, provider.defaultModel]),
 	) as Record<AiProviderId, string>,
-	extraInstructions: '',
+	agentInstructionsFilePath: '',
+	includeNotePathInContext: false,
 	maxContextCharacters: 12000,
 };
 
@@ -66,8 +74,13 @@ export function normalizeSettings(
 			...DEFAULT_SETTINGS.models,
 			...(data?.models ?? {}),
 		},
-		extraInstructions:
-			data?.extraInstructions ?? DEFAULT_SETTINGS.extraInstructions,
+		agentInstructionsFilePath:
+			data?.agentInstructionsFilePath ??
+			DEFAULT_SETTINGS.agentInstructionsFilePath,
+		includeNotePathInContext:
+			typeof data?.includeNotePathInContext === 'boolean'
+				? data.includeNotePathInContext
+				: DEFAULT_SETTINGS.includeNotePathInContext,
 		maxContextCharacters:
 			typeof data?.maxContextCharacters === 'number'
 				? data.maxContextCharacters
@@ -154,19 +167,41 @@ export class LapisLazuliSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		const agentFilePath = this.plugin.settings.agentInstructionsFilePath;
 		new Setting(containerEl)
-			.setName('Extra instructions')
-			.setDesc('Optional guidance appended to every AI request when this field is not empty.')
-			.addTextArea((textArea) => {
-				textArea.inputEl.rows = 4;
-				textArea
-					.setPlaceholder('Example: Keep answers concise and preserve my writing style.')
-					.setValue(this.plugin.settings.extraInstructions)
-					.onChange(async (value) => {
-						this.plugin.settings.extraInstructions = value.trim();
+			.setName('Agent instructions file')
+			.setDesc(agentFilePath || 'No Markdown file selected.')
+			.addButton((button) =>
+				button.setButtonText('Select file').onClick(() => {
+					new MarkdownFileSuggestModal(this.app, async (file) => {
+						this.plugin.settings.agentInstructionsFilePath = file.path;
 						await this.plugin.saveSettings();
-					});
-			});
+						this.renderSettings();
+					}).open();
+				}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText('Clear')
+					.setDisabled(!agentFilePath)
+					.onClick(async () => {
+						this.plugin.settings.agentInstructionsFilePath = '';
+						await this.plugin.saveSettings();
+						this.renderSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Include note path')
+			.setDesc('Send the active note path with each AI request.')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.includeNotePathInContext)
+					.onChange(async (value) => {
+						this.plugin.settings.includeNotePathInContext = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 
 		new Setting(containerEl)
 			.setName('Context character limit')
@@ -193,4 +228,26 @@ export class LapisLazuliSettingTab extends PluginSettingTab {
 
 function isProviderId(value: unknown): value is AiProviderId {
 	return AI_PROVIDERS.some((provider) => provider.id === value);
+}
+
+class MarkdownFileSuggestModal extends FuzzySuggestModal<TFile> {
+	constructor(
+		app: App,
+		private readonly onChooseFile: (file: TFile) => void | Promise<void>,
+	) {
+		super(app);
+		this.setPlaceholder('Select an agent instructions Markdown file');
+	}
+
+	getItems(): TFile[] {
+		return this.app.vault.getMarkdownFiles();
+	}
+
+	getItemText(file: TFile): string {
+		return file.path;
+	}
+
+	onChooseItem(file: TFile): void {
+		void this.onChooseFile(file);
+	}
 }

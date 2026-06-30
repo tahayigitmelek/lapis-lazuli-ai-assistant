@@ -3,8 +3,9 @@ import { AiProviderId, getProviderName, LapisLazuliSettings } from './settings';
 
 export interface AiSuggestionContext {
 	markdown: string;
+	notePath?: string;
 	userMessage: string;
-	extraInstructions: string;
+	agentInstructions?: string;
 }
 
 export interface AiMessage {
@@ -79,7 +80,7 @@ export async function requestAiSuggestion(
 ) {
 	return requestAiText({
 		settings,
-		systemPrompt: buildInlineSystemPrompt(),
+		systemPrompt: buildInlineSystemPrompt(context.agentInstructions),
 		userPrompt: buildUserPrompt(context),
 		history,
 	});
@@ -92,7 +93,7 @@ export async function requestAiChatResponse(
 ): Promise<AiChatResponse> {
 	const response = await requestAiText({
 		settings,
-		systemPrompt: buildChatSystemPrompt(),
+		systemPrompt: buildChatSystemPrompt(context.agentInstructions),
 		userPrompt: buildUserPrompt(context),
 		history,
 	});
@@ -159,17 +160,17 @@ async function requestAiText(args: {
 	}
 }
 
-function buildInlineSystemPrompt() {
-	return [
+function buildInlineSystemPrompt(agentInstructions: string | undefined) {
+	return appendAgentInstructions([
 		'You are Lapis Lazuli, a context-aware writing assistant inside Obsidian.',
 		'The user will send the active note as Markdown and a separate message describing what they want.',
 		'Return only the Markdown text that should be applied to the note.',
 		'Do not include explanations, prefaces, or code fences unless code fences are part of the requested note content.',
-	].join('\n');
+	].join('\n'), agentInstructions);
 }
 
-function buildChatSystemPrompt() {
-	return [
+function buildChatSystemPrompt(agentInstructions: string | undefined) {
+	return appendAgentInstructions([
 		'You are Lapis Lazuli, a context-aware writing assistant inside Obsidian.',
 		'The user will send the active note as Markdown and a separate message describing what they want.',
 		'Classify the user message as either a question about the note or a request to edit the note.',
@@ -177,11 +178,34 @@ function buildChatSystemPrompt() {
 		'If it asks to add, remove, rewrite, fix, translate, summarize into the note, or otherwise change the note, return JSON only: {"type":"edit","updatedMarkdown":"the complete updated Markdown document","summary":"short summary of the proposed change"}.',
 		'For edit responses, updatedMarkdown must be the full active note after applying the requested change. Preserve unchanged Markdown exactly.',
 		'Do not wrap the JSON in code fences or add any text outside the JSON object.',
+	].join('\n'), agentInstructions);
+}
+
+function appendAgentInstructions(
+	systemPrompt: string,
+	agentInstructions: string | undefined,
+) {
+	const instructions = agentInstructions?.trim();
+	if (!instructions) {
+		return systemPrompt;
+	}
+
+	return [
+		systemPrompt,
+		'',
+		'Agent instructions from the selected Markdown file:',
+		instructions,
 	].join('\n');
 }
 
 function buildUserPrompt(context: AiSuggestionContext) {
-	const prompt = [
+	const prompt: string[] = [];
+	const notePath = context.notePath?.trim();
+	if (notePath) {
+		prompt.push('Active note path:', notePath, '');
+	}
+
+	prompt.push(
 		'Active note Markdown:',
 		'```markdown',
 		context.markdown,
@@ -189,12 +213,7 @@ function buildUserPrompt(context: AiSuggestionContext) {
 		'',
 		'User message:',
 		context.userMessage,
-	];
-
-	const extraInstructions = context.extraInstructions.trim();
-	if (extraInstructions) {
-		prompt.push('', 'Extra instructions:', extraInstructions);
-	}
+	);
 
 	return prompt.join('\n');
 }
